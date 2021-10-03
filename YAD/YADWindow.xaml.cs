@@ -23,17 +23,17 @@ namespace YAD
 
         private readonly SynchronizationContext syncContext;
 
-        private string SelectedDeviceId => captureDevices.Single(d => d.DeviceNumber == selectedDeviceIndex).ID;
+        private DeviceContainer SelectedDevice => captureDevices.Single(d => d.DeviceNumber == selectedDeviceIndex);
 
         public YADWindow()
         {
             InitializeComponent();
             syncContext = SynchronizationContext.Current;
 
-            InitializeYADUI();
+            InitializeYAD();
         }
 
-        private void InitializeYADUI()
+        private void InitializeYAD()
         {
             audioHandler = new AudioWrapper();
             captureDevices = audioHandler.CaptureDeviceCollection;
@@ -105,15 +105,15 @@ namespace YAD
 
             try
             {
-                if (SelectedDeviceId == YADConstants.LoopbackDevice)
+                if (SelectedDevice.ID == YADConstants.LoopbackDevice)
                 {
                     audioHandler.RecordLoopback();
                 }
                 else
                 {
-                    audioHandler.RecordFromDevice(SelectedDeviceId, selectedChannel);
+                    audioHandler.RecordFromDevice(SelectedDevice, selectedChannel);
                 }
-                
+
                 audioHandler.AudioDataSubscriber(visualizer.AudioDataHandler);
             }
             catch (Exception ex)
@@ -152,5 +152,13 @@ namespace YAD
         }
 
         #endregion
+
+        private void DeviceInfo_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (CaptureDevices.SelectedItem != null)
+            {
+                MessageBox.Show(audioHandler.GetDeviceCapabilities(SelectedDevice), "Device Information");
+            }
+        }
     }
 }

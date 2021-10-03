@@ -1,19 +1,23 @@
 ﻿using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using YAD.Audio.SampleProviders;
 
 namespace YAD.Audio
 {
     public class AudioWrapper
     {
         private WasapiCapture wasapiCapture;
-        private WaveFileWriter waveWriter;
-        private string audioFile;
+        private WaveFileWriter waveFileWriter;
+        private WaveFormat outputFormat;
+
         private int selectedChannel;
+        private string audioFile;
 
         public MMDeviceCollection DeviceCollection { get; }
         public List<DeviceContainer> CaptureDeviceCollection { get; }
@@ -26,19 +30,19 @@ namespace YAD.Audio
 
             DeviceCollection = devEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             CaptureDeviceCollection = DeviceCollection.Select(device => new DeviceContainer(device, deviceNumber++)).ToList();
-            CaptureDeviceCollection.Add(LoopbackDevice(deviceNumber++));
+            CaptureDeviceCollection.Add(AudioHelper.LoopbackDevice(deviceNumber++));
 
             RecordingState = State.Idle;
         }
 
         #region Recording
 
-        public void RecordFromDevice(string deviceId, int channel)
+        public void RecordFromDevice(DeviceContainer device, int channel)
         {
             RecordingState = State.Active;
             selectedChannel = channel;
 
-            WasapiCaptureStart(deviceId, false);
+            WasapiCaptureStart(DeviceById(device.ID), false);
         }
 
         public void RecordLoopback()
@@ -48,7 +52,6 @@ namespace YAD.Audio
             WasapiCaptureStart(null, true);
         }
 
-
         public async Task<string> StopRecording()
         {
             wasapiCapture.StopRecording();
@@ -57,11 +60,6 @@ namespace YAD.Audio
             {
                 while (RecordingState == State.Active) { }
             });
-
-            if (selectedChannel != AudioConstants.AllChannels)
-            {
-                audioFile = ExtractSpecificWaveChannel(audioFile);
-            }
 
             return audioFile;
         }
@@ -83,66 +81,34 @@ namespace YAD.Audio
             return DeviceCollection.Single(d => d.ID == id);
         }
 
-        private void WasapiCaptureStart(string deviceId, bool loopback)
+        private void WasapiCaptureStart(MMDevice device, bool loopback)
         {
             if (!loopback)
             {
-                wasapiCapture = new WasapiCapture(DeviceById(deviceId))
+                wasapiCapture = new WasapiCapture(device)
                 {
                     ShareMode = AudioClientShareMode.Shared
                 };
-                wasapiCapture.WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(wasapiCapture.WaveFormat.SampleRate, wasapiCapture.WaveFormat.Channels);
+                wasapiCapture.WaveFormat = InitializeWaveFormat(wasapiCapture.WaveFormat);
             }
             else
             {
                 wasapiCapture = new WasapiLoopbackCapture();
+                InitializeWaveFormat(wasapiCapture.WaveFormat);
             }
             wasapiCapture.DataAvailable += OnDataAvailable;
             wasapiCapture.RecordingStopped += OnRecordingStopped;
 
             audioFile = Path.GetTempFileName();
+
+            waveFileWriter = new WaveFileWriter(audioFile, wasapiCapture.WaveFormat);
             wasapiCapture.StartRecording();
         }
 
-        private void WasapiLoopbackStart()
+        private WaveFormat InitializeWaveFormat(WaveFormat intputWaveFormat)
         {
-            wasapiCapture = new WasapiLoopbackCapture();
-            wasapiCapture.DataAvailable += OnDataAvailable;
-            wasapiCapture.RecordingStopped += OnRecordingStopped;
-
-            wasapiCapture.StartRecording();
-        }
-
-        private string ExtractSpecificWaveChannel(string file)
-        {
-            string tempFile = Path.GetTempFileName();
-            WaveFileReader reader = new WaveFileReader(file);
-            WaveFormat format = WaveFormat.CreateIeeeFloatWaveFormat(reader.WaveFormat.SampleRate, AudioConstants.MonoChannel);
-            WaveFileWriter writer = new WaveFileWriter(tempFile, format);
-
-            float[] buffer;
-            while ((buffer = reader.ReadNextSampleFrame())?.Length > 0)
-            {
-                writer.WriteSample(buffer[selectedChannel - 1]);
-            }
-
-            writer.Dispose();
-            reader.Dispose();
-            File.Delete(file);
-
-            return tempFile;
-        }
-
-        private DeviceContainer LoopbackDevice(int number)
-        {
-            return new DeviceContainer
-            (
-                YADConstants.LoopbackDevice,
-                number,
-                AudioConstants.AllChannels,
-                DeviceState.Active.ToString(),
-                YADConstants.LoopbackDeviceFriendly
-            ); ;
+            outputFormat = WaveFormat.CreateIeeeFloatWaveFormat(intputWaveFormat.SampleRate, intputWaveFormat.Channels);
+            return outputFormat;
         }
 
         #endregion
@@ -151,14 +117,22 @@ namespace YAD.Audio
 
         private void OnDataAvailable(object sender, WaveInEventArgs e)
         {
-            if (waveWriter == null)
+            ISampleProvider outputProvider;
+
+            RecordingSampleProvider inputProvider = new RecordingSampleProvider(outputFormat, e);
+            int samplesRecorded = inputProvider.SamplesRecorded;
+            outputProvider = inputProvider;
+
+            if (selectedChannel != AudioConstants.AllChannels)
             {
-                waveWriter = new WaveFileWriter(audioFile, wasapiCapture.WaveFormat);
+                StripingSampleProvider channelStripper = new StripingSampleProvider(inputProvider)
+                {
+                    RetainChannel = selectedChannel - 1
+                };
+                outputProvider = channelStripper;
             }
-            else
-            {
-                waveWriter.Write(e.Buffer, AudioConstants.DefaultBufferOffset, e.BytesRecorded);
-            }
+
+            AudioHelper.SampleProviderWriter(waveFileWriter, outputProvider, samplesRecorded);
         }
 
         private void OnRecordingStopped(object sender, StoppedEventArgs e)
@@ -169,13 +143,25 @@ namespace YAD.Audio
                 wasapiCapture = null;
             }
 
-            if (waveWriter != null)
+            if (waveFileWriter != null)
             {
-                waveWriter.Dispose();
-                waveWriter = null;
+                waveFileWriter.Dispose();
+                waveFileWriter = null;
             }
 
             RecordingState = State.Idle;
+        }
+
+        #endregion
+
+        #region Misc
+
+        public string GetDeviceCapabilities(DeviceContainer device)
+        {
+            if (device.ID == YADConstants.LoopbackDevice)
+                return YADConstants.LoopbackDeviceFriendly;
+
+            return AudioHelper.GetWasapiDeviceCapabilities(DeviceById(device.ID));
         }
 
         #endregion

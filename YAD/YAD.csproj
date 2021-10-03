@@ -97,8 +97,11 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Audio\AudioConstants.cs" />
+    <Compile Include="Audio\AudioHelper.cs" />
     <Compile Include="Audio\DeviceContainer.cs" />
     <Compile Include="Audio\AudioWrapper.cs" />
+    <Compile Include="Audio\SampleProviders\RecordingSampleProvider.cs" />
+    <Compile Include="Audio\SampleProviders\StripingSampleProvider.cs" />
     <Compile Include="Visualization\AudioVisualizer.cs" />
     <Compile Include="Visualization\Extensions.cs" />
     <Compile Include="YADWindow.xaml.cs">
