@@ -14,10 +14,10 @@ YAD can currently do the following
 * Draw a waveform of the recorded audio in real-time.
 
 ## What It Might Do
+YAD will hopefully include
 * Provide a configurable noise gate to limit background hum.
 * Provide basic effects like chorus or reverb.
 * Provide a spectrum analyser
-** As a visualization option
-** As frequency analyzer for an in-built tuner
-
+  * As a visualization option
+  * As frequency analyzer for an in-built tuner
 * Other simple useful tasks like extracting audio from a video file, etc.
