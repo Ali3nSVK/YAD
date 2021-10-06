@@ -9,12 +9,12 @@ The way I wanted to approach this was slightly different that what most tutorial
 YAD can currently do the following
 * Record from a capture device on specific channel (or all channels).
 * Record from a loopback adapter device to capture audio played on the soundcard.
-* Output into a WAV, MP3 file or simply monitor the audio in real-time.
+* Output into a WAV, MP3 file or monitor the audio in real-time.
 * Provide basic settings while recording like Gain.
 * Draw a waveform of the recorded audio in real-time.
 
 ## What It Might Do
-YAD will hopefully include
+YAD will hopefully
 * Provide a configurable noise gate to limit background hum.
 * Provide basic effects like chorus or reverb.
 * Provide a spectrum analyser
