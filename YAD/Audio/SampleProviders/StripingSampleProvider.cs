@@ -24,7 +24,7 @@ namespace YAD.Audio.SampleProviders
             {
                 for (int j = 0; j < channels; j++)
                 {
-                    buffer[offset + i + j] = sourceBuffer[i];
+                    buffer[offset + i + j] = sourceBuffer[i] / channels;
                 }
             }
 

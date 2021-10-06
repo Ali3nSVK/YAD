@@ -7,23 +7,25 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using YAD.Audio.SampleProviders;
+using YAD.Audio.Utils;
 
 namespace YAD.Audio
 {
-    public class AudioWrapper
+    public class AudioEngine
     {
         private WasapiCapture wasapiCapture;
-        private WaveFileWriter waveFileWriter;
+        private AudioFileWriter waveWriter;
+        private AudioPlayer player;
         private WaveFormat outputFormat;
 
-        private int selectedChannel;
         private string audioFile;
 
+        public AudioSettings Settings { get; }
         public MMDeviceCollection DeviceCollection { get; }
         public List<DeviceContainer> CaptureDeviceCollection { get; }
-        public State RecordingState { get; private set; }
+        public RecordingState RecordingState { get; private set; }
 
-        public AudioWrapper()
+        public AudioEngine()
         {
             int deviceNumber = 0;
             MMDeviceEnumerator devEnum = new MMDeviceEnumerator();
@@ -32,22 +34,23 @@ namespace YAD.Audio
             CaptureDeviceCollection = DeviceCollection.Select(device => new DeviceContainer(device, deviceNumber++)).ToList();
             CaptureDeviceCollection.Add(AudioHelper.LoopbackDevice(deviceNumber++));
 
-            RecordingState = State.Idle;
+            Settings = new AudioSettings();
+
+            RecordingState = RecordingState.Idle;
         }
 
         #region Recording
 
-        public void RecordFromDevice(DeviceContainer device, int channel)
+        public void RecordFromDevice(DeviceContainer device)
         {
-            RecordingState = State.Active;
-            selectedChannel = channel;
+            RecordingState = RecordingState.Active;
 
             WasapiCaptureStart(DeviceById(device.ID), false);
         }
 
         public void RecordLoopback()
         {
-            RecordingState = State.Active;
+            RecordingState = RecordingState.Active;
 
             WasapiCaptureStart(null, true);
         }
@@ -58,7 +61,7 @@ namespace YAD.Audio
 
             await Task.Run(() =>
             {
-                while (RecordingState == State.Active) { }
+                while (RecordingState == RecordingState.Active) { }
             });
 
             return audioFile;
@@ -94,14 +97,14 @@ namespace YAD.Audio
             else
             {
                 wasapiCapture = new WasapiLoopbackCapture();
-                InitializeWaveFormat(wasapiCapture.WaveFormat);
+                _ = InitializeWaveFormat(wasapiCapture.WaveFormat);
+
             }
+            
             wasapiCapture.DataAvailable += OnDataAvailable;
             wasapiCapture.RecordingStopped += OnRecordingStopped;
 
-            audioFile = Path.GetTempFileName();
-
-            waveFileWriter = new WaveFileWriter(audioFile, wasapiCapture.WaveFormat);
+            WasapiOutputInit(Settings.TargetFormat);
             wasapiCapture.StartRecording();
         }
 
@@ -109,6 +112,19 @@ namespace YAD.Audio
         {
             outputFormat = WaveFormat.CreateIeeeFloatWaveFormat(intputWaveFormat.SampleRate, intputWaveFormat.Channels);
             return outputFormat;
+        }
+
+        private void WasapiOutputInit(TargetType target)
+        {
+            if (target == TargetType.Monitor)
+            {
+                player = new AudioPlayer(outputFormat);
+            }
+            else
+            {
+                audioFile = Path.GetTempFileName();
+                waveWriter = new AudioFileWriter(Settings.TargetFormat, outputFormat, audioFile);
+            }
         }
 
         #endregion
@@ -123,16 +139,29 @@ namespace YAD.Audio
             int samplesRecorded = inputProvider.SamplesRecorded;
             outputProvider = inputProvider;
 
-            if (selectedChannel != AudioConstants.AllChannels)
+            if (Settings.Channel != AudioConstants.AllChannels)
             {
                 StripingSampleProvider channelStripper = new StripingSampleProvider(inputProvider)
                 {
-                    RetainChannel = selectedChannel - 1
+                    RetainChannel = Settings.Channel - 1
                 };
                 outputProvider = channelStripper;
             }
 
-            AudioHelper.SampleProviderWriter(waveFileWriter, outputProvider, samplesRecorded);
+            VolumeSampleProvider volumeProvider = new VolumeSampleProvider(outputProvider)
+            {
+                Volume = Settings.GainLevel
+            };
+            outputProvider = volumeProvider;
+
+            if (Settings.TargetFormat == TargetType.Monitor)
+            {
+                player.Enqueue(outputProvider, samplesRecorded);
+            }
+            else
+            {
+                waveWriter.WriteToFile(outputProvider, samplesRecorded);
+            }
         }
 
         private void OnRecordingStopped(object sender, StoppedEventArgs e)
@@ -143,13 +172,19 @@ namespace YAD.Audio
                 wasapiCapture = null;
             }
 
-            if (waveFileWriter != null)
+            if (waveWriter != null)
             {
-                waveFileWriter.Dispose();
-                waveFileWriter = null;
+                waveWriter.Dispose();
+                waveWriter = null;
             }
 
-            RecordingState = State.Idle;
+            if (player != null)
+            {
+                player.Stop();
+                player = null;
+            }
+
+            RecordingState = RecordingState.Idle;
         }
 
         #endregion

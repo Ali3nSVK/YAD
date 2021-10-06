@@ -1,6 +1,6 @@
 ﻿using NAudio.CoreAudioApi;
 
-namespace YAD.Audio
+namespace YAD.Audio.Utils
 {
     public struct DeviceContainer
     {

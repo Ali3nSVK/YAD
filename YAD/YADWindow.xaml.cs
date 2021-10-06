@@ -7,6 +7,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using YAD.Audio;
+using YAD.Audio.Utils;
 using YAD.Visualization;
 
 namespace YAD
@@ -14,10 +15,8 @@ namespace YAD
     public partial class YADWindow : Window
     {
         private int selectedDeviceIndex;
-        private int selectedChannel;
-        private string audioFile;
 
-        private AudioWrapper audioHandler;
+        public AudioEngine AudioHandler { get; private set; }
         private AudioVisualizer visualizer;
         private List<DeviceContainer> captureDevices;
 
@@ -35,8 +34,8 @@ namespace YAD
 
         private void InitializeYAD()
         {
-            audioHandler = new AudioWrapper();
-            captureDevices = audioHandler.CaptureDeviceCollection;
+            AudioHandler = new AudioEngine();
+            captureDevices = AudioHandler.CaptureDeviceCollection;
 
             foreach(DeviceContainer cont in captureDevices)
             {
@@ -45,14 +44,72 @@ namespace YAD
 
             visualizer = new AudioVisualizer(syncContext);
             WaveformGrid.Children.Add(visualizer);
+
+            GainSlider.Value = AudioHandler.Settings.GainLevel * 100;
         }
+
+        #region Recording
+
+        private void StartRecording()
+        {
+            try
+            {
+                if (SelectedDevice.ID == YADConstants.LoopbackDevice)
+                {
+                    AudioHandler.RecordLoopback();
+                }
+                else
+                {
+                    AudioHandler.RecordFromDevice(SelectedDevice);
+                }
+
+                AudioHandler.AudioDataSubscriber(visualizer.AudioDataHandler);
+            }
+            catch (Exception ex)
+            {
+                HandleException(ex);
+            }
+        }
+
+        private async void StopRecording()
+        {
+            try
+            {
+                if (AudioHandler.Settings.TargetFormat != TargetType.Monitor)
+                {
+                    string audioFile = await AudioHandler.StopRecording();
+                    string outputFile = RunSaveDialog();
+
+                    if (string.IsNullOrWhiteSpace(outputFile))
+                    {
+                        File.Delete(audioFile);
+                    }
+                    else
+                    {
+                        File.Move(audioFile, outputFile);
+                    }
+                }
+                else
+                {
+                    await AudioHandler.StopRecording();
+                }
+            }
+            catch (Exception ex)
+            {
+                HandleException(ex);
+            }
+        }
+
+        #endregion
+
+        #region Utility
 
         private string RunSaveDialog()
         {
             SaveFileDialog dlg = new SaveFileDialog
             {
                 FileName = "yad_recording_" + DateTime.Now.ToString("yyyyMMddTHHmmss"),
-                Filter = "Waveform Audio Files (*.wav)|*.wav"
+                Filter = AudioHandler.Settings.TargetFormat == TargetType.Wav ? YADConstants.DialogWavFilter : YADConstants.DialogMp3Filter
             };
             bool? result = dlg.ShowDialog();
 
@@ -64,9 +121,7 @@ namespace YAD
             _ = MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
-        #region Event Handlers
-
-        private void CaptureDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void InitializeDropDowns()
         {
             selectedDeviceIndex = CaptureDevices.SelectedIndex;
             int selectedDeviceChannels = captureDevices.Single(d => d.DeviceNumber == selectedDeviceIndex).Channels;
@@ -94,71 +149,72 @@ namespace YAD
             }
         }
 
-        private void RecordButton_Start(object sender, RoutedEventArgs e)
+        private void UpdateUIState(bool startedRecording)
         {
-            RecordButton.Click -= RecordButton_Start;
-            RecordButton.Click += RecordButton_Stop;
-            RecordButton.Content = "Stop";
-
-            CaptureDevices.IsEnabled = false;
-            DeviceChannels.IsEnabled = false;
-
-            try
+            if (startedRecording)
             {
-                if (SelectedDevice.ID == YADConstants.LoopbackDevice)
-                {
-                    audioHandler.RecordLoopback();
-                }
-                else
-                {
-                    audioHandler.RecordFromDevice(SelectedDevice, selectedChannel);
-                }
-
-                audioHandler.AudioDataSubscriber(visualizer.AudioDataHandler);
+                RecordButton.Click -= RecordButton_Start;
+                RecordButton.Click += RecordButton_Stop;
+                RecordButton.Content = "Stop";
             }
-            catch (Exception ex)
+            else
             {
-                HandleException(ex);
+                RecordButton.Click -= RecordButton_Stop;
+                RecordButton.Click += RecordButton_Start;
+                RecordButton.Content = "Record";
             }
+
+            CaptureDevices.IsEnabled = !startedRecording;
+            DeviceChannels.IsEnabled = !startedRecording;
+            WavRadio.IsEnabled = !startedRecording;
+            Mp3Radio.IsEnabled = !startedRecording;
+            MonitorRadio.IsEnabled = !startedRecording;
         }
 
-        private async void RecordButton_Stop(object sender, RoutedEventArgs e)
+        #endregion
+
+        #region Event Handlers
+
+        private void CaptureDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            RecordButton.Click -= RecordButton_Stop;
-            RecordButton.Click += RecordButton_Start;
-            RecordButton.Content = "Record";
+            InitializeDropDowns();
+        }
 
-            try
-            {
-                audioFile = await audioHandler.StopRecording();
+        private void RecordButton_Start(object sender, RoutedEventArgs e)
+        {
+            UpdateUIState(true);
+            StartRecording();
+        }
 
-                string outputFile = RunSaveDialog();
-                File.Move(audioFile, outputFile);
-            }
-            catch (Exception ex)
-            {
-                HandleException(ex);
-            }
-
-            CaptureDevices.IsEnabled = true;
-            DeviceChannels.IsEnabled = true;
+        private void RecordButton_Stop(object sender, RoutedEventArgs e)
+        {
+            StopRecording();
+            UpdateUIState(false);
 
             visualizer.Clear();
         }
 
         private void DeviceChannels_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            selectedChannel = DeviceChannels.SelectedIndex;
+            AudioHandler.Settings.Channel = DeviceChannels.SelectedIndex;
         }
-
-        #endregion
 
         private void DeviceInfo_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (CaptureDevices.SelectedItem != null)
             {
-                MessageBox.Show(audioHandler.GetDeviceCapabilities(SelectedDevice), "Device Information");
+                MessageBox.Show(AudioHandler.GetDeviceCapabilities(SelectedDevice), "Device Information");
             }
         }
+
+        private void GainSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (AudioHandler != null)
+            {
+                AudioHandler.Settings.GainLevel = (float)GainSlider.Value / 100;
+            }
+        }
+
+        #endregion
     }
 }

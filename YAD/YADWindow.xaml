@@ -3,19 +3,27 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:au="clr-namespace:YAD.Audio.Utils"
+        xmlns:ui="clr-namespace:YAD.UI"
         mc:Ignorable="d"
-        Title="YAD" Height="250" Width="650" Icon="Resources/icon.ico"
-        MinHeight="250" MinWidth="650">
+        Title="YAD" Height="350" Width="650" Icon="Resources/icon.ico"
+        MinHeight="350" MinWidth="650">
+
+    <Window.Resources>
+        <ui:EnumBooleanConverter x:Key="enumBooleanConverter"/>
+    </Window.Resources>
+
     <Grid Background="Salmon">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"></ColumnDefinition>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="60"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
             <RowDefinition Height="*"></RowDefinition>
         </Grid.RowDefinitions>
         
-        <GroupBox x:Name="DeviceGroupBox" Header="Device" Margin="0,0,0,5" BorderThickness="0.5" Grid.Row="0" Grid.Column="0">
+        <GroupBox x:Name="DeviceGroupBox" Header="Device" Margin="2,2,2,5" BorderThickness="0.5" Grid.Row="0" Grid.Column="0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"></ColumnDefinition>
@@ -33,9 +41,43 @@
                 <Button x:Name="RecordButton" Content="Record" Width="45" Height="20" IsEnabled="False" Grid.Column="4" Click="RecordButton_Start"/>
             </Grid>
         </GroupBox>
+
+        <GroupBox x:Name="SettingsGroupBox" Header="Settings" BorderThickness="0.5" Margin="2,2,2,5" Grid.Row="1" Grid.Column="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                
+                <GroupBox x:Name="TargetBox" Header="Target" BorderThickness="0.5" Margin="0,0,0,0" Grid.Column="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"></RowDefinition>
+                            <RowDefinition Height="Auto"></RowDefinition>
+                            <RowDefinition Height="Auto"></RowDefinition>
+                        </Grid.RowDefinitions>
+                        <RadioButton x:Name="WavRadio" IsChecked="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AudioHandler.Settings.TargetFormat, Converter={StaticResource enumBooleanConverter}, ConverterParameter={x:Static au:TargetType.Wav}}" GroupName="Target" Grid.Row="0">WAV File</RadioButton>
+                        <RadioButton x:Name="Mp3Radio" IsChecked="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AudioHandler.Settings.TargetFormat, Converter={StaticResource enumBooleanConverter}, ConverterParameter={x:Static au:TargetType.Mp3}}" GroupName="Target" Grid.Row="1">MP3 File</RadioButton>
+                        <RadioButton x:Name="MonitorRadio" IsChecked="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AudioHandler.Settings.TargetFormat, Converter={StaticResource enumBooleanConverter}, ConverterParameter={x:Static au:TargetType.Monitor}}" GroupName="Target" Grid.Row="2">Monitor</RadioButton>
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox x:Name="GainBox" Header="Gain" BorderThickness="0.5" Margin="0,0,0,0" Grid.Column="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"></ColumnDefinition>
+                            <ColumnDefinition Width="Auto"></ColumnDefinition>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="GainSlider" Value="100" Maximum="100" Width="120" TickPlacement="BottomRight" TickFrequency="10" Margin="0,0,2,0" Grid.Column="0" ValueChanged="GainSlider_ValueChanged"/>
+                        <TextBox Text="{Binding ElementName=GainSlider, Path=Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N0}}" VerticalAlignment="Top" Width="25" Height="20" TextAlignment="Right" Grid.Column="1"/>
+                    </Grid>
+                </GroupBox>
+            </Grid>
+        </GroupBox>
         
-        <GroupBox x:Name="ContentGroupBox" Header="Waveform" BorderThickness="0.5" Margin="0,0,0,0" Grid.Row="1" Grid.Column="0">
-            <Grid x:Name="WaveformGrid"/>
+        <GroupBox x:Name="ContentGroupBox" Header="Waveform" BorderThickness="0.5" Margin="2,2,2,2" Grid.Row="2" Grid.Column="0">
+            <Grid x:Name="WaveformGrid"/> 
+            <!-- Waveform is constructed and added in codebehind. -->
         </GroupBox>
     </Grid>
 </Window>

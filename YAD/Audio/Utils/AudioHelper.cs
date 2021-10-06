@@ -2,7 +2,7 @@
 using NAudio.Wave;
 using System.Text;
 
-namespace YAD.Audio
+namespace YAD.Audio.Utils
 {
     public static class AudioHelper
     {
@@ -13,28 +13,43 @@ namespace YAD.Audio
                 YADConstants.LoopbackDevice,
                 number,
                 AudioConstants.AllChannels,
-                State.Active.ToString(),
+                RecordingState.Active.ToString(),
                 YADConstants.LoopbackDeviceFriendly
             ); ;
         }
 
         public static WaveBuffer GetFloatBuffer(WaveInEventArgs e)
         {
-            WaveBuffer tmpBuffer = new WaveBuffer(e.Buffer);
-            tmpBuffer.FloatBufferCount = e.BytesRecorded / 4;
+            WaveBuffer tmpBuffer = new WaveBuffer(e.Buffer)
+            {
+                FloatBufferCount = e.BytesRecorded / 4
+            };
 
             return tmpBuffer;
         }
 
-        public static void SampleProviderWriter(WaveFileWriter writer, ISampleProvider provider, int count)
+        public static WaveBuffer GetByteBuffer(float[] buffer, int samples)
         {
-            float[] outputBuffer = new float[count];
-            int samplesReceived = provider.Read(outputBuffer, AudioConstants.DefaultBufferOffset, count);
+            byte[] pcm = new byte[samples * 2];
+            int sampleIndex = 0,
+                pcmIndex = 0;
 
-            for (int i = 0; i < samplesReceived; i++)
+            while (sampleIndex < samples)
             {
-                writer.WriteSample(outputBuffer[i]);
+                var outsample = (short)(buffer[sampleIndex] * short.MaxValue);
+                pcm[pcmIndex] = (byte)(outsample & 0xff);
+                pcm[pcmIndex + 1] = (byte)((outsample >> 8) & 0xff);
+
+                sampleIndex++;
+                pcmIndex += 2;
             }
+
+            WaveBuffer tmpBuffer = new WaveBuffer(pcm)
+            {
+                ByteBufferCount = samples * 2
+            };
+
+            return tmpBuffer;
         }
 
         public static string GetWasapiDeviceCapabilities(MMDevice device)
