@@ -2,8 +2,8 @@
 Yet Another Dictaphone
 
 ## Purpose
-The purpose of this project is to get familiar with the [NAudio](https://github.com/naudio/NAudio) library as well as digital audio processing, signal chains, effects, codecs, visualizations and basically anything audio related that piqued my interest during development.
-The way I wanted to approach this was slightly different that what most tutorials and code snippets do and that is to apply all of the above in real-time while recording, as opposed to reading from files.
+The purpose of this project is to get familiar with the [NAudio](https://github.com/naudio/NAudio) library as well as digital audio processing, signal chains, effects, codecs, visualizations and anything audio related that piqued my interest during development.
+The approach was slightly different to what most tutorials and code snippets do and that is to apply all of the above in real-time while recording, as opposed to reading from files.
 
 ## What It Does
 YAD can currently do the following
