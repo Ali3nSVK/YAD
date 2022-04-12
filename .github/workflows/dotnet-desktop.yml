@@ -1,0 +1,54 @@
+name: .NET Framework
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v1.0.5
+      
+    - name: Navigate to Workspace
+      run: cd $GITHUB_WORKSPACE
+      
+    - name: Restore NuGet Packages
+      run: nuget restore YAD.sln
+      
+    - name: Build
+      run: msbuild.exe YAD.sln /p:platform="Any CPU" /p:Configuration="Release"
+      
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: YADFiles
+        path: YAD\bin\Release
+      
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: YADFiles
+          path: YADFiles
+      
+      - name: Navigate to Artifacts
+        run: cd YADFiles
+        
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.RELEASE_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: false
+          files: |
+            RNGFiles/*.*
