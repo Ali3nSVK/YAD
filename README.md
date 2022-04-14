@@ -1,5 +1,5 @@
 # YAD
-Yet Another Dictaphone
+Yet Another Dictaphone  
 [![.NET Framework](https://github.com/Ali3nSVK/YAD/actions/workflows/dotnet-desktop.yml/badge.svg)](https://github.com/Ali3nSVK/YAD/actions/workflows/dotnet-desktop.yml)
 
 ## Purpose
