@@ -1,5 +1,6 @@
 # YAD
 Yet Another Dictaphone
+[![.NET Framework](https://github.com/Ali3nSVK/YAD/actions/workflows/dotnet-desktop.yml/badge.svg)](https://github.com/Ali3nSVK/YAD/actions/workflows/dotnet-desktop.yml)
 
 ## Purpose
 The purpose of this project is to get familiar with the [NAudio](https://github.com/naudio/NAudio) library as well as digital audio processing, signal chains, effects, codecs, visualizations and anything audio related that piqued my interest during development.
